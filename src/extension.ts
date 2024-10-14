@@ -1,4 +1,3 @@
-import * as path from 'path';
 import * as vscode from 'vscode';
 
 type Message = {
@@ -30,15 +29,15 @@ export function activate(context: vscode.ExtensionContext) {
             // 将用户输入推送到全局的 messages 数组中
             messages.push({role: 'user', content: user_input});
 
-            // 模拟发送请求并接收消息（可以替换为真实的 API 调用）
-            const aiResponse = await chatWithAI(messages);
+            // 流式生成AI回复
+            let aiReply = '';
+            await chatWithAI(messages, (partialData) => {
+              aiReply += partialData;  // 累积AI回复
+              panel.webview.postMessage({command: 'aiResponse', text: aiReply});
+            });
 
-            // 将 AI 回复也推送到全局 messages 数组中
-            messages.push(aiResponse);
-
-            // 将 AI 的回复发送回 Webview
-            panel.webview.postMessage(
-                {command: 'aiResponse', text: aiResponse.content});
+            // 将AI回复推送到全局 messages 数组中
+            messages.push({role: 'assistant', content: aiReply});
           } else if (message.command === 'resetConversation') {
             // 重置 messages 数组，回到初始状态
             messages =
@@ -107,8 +106,7 @@ function getWebviewContent() {
       border: none;
     }
     </style>
-    <!-- 引入 marked.js 库 -->
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     </head>
     <body>
   <div id="chat-container">
@@ -127,36 +125,35 @@ function getWebviewContent() {
     const userInput = document.getElementById('user-input');
     const messageList = document.getElementById('message-list');
 
-    // 发送消息并清除输入框
     askButton.addEventListener('click', () => {
       const userText = userInput.value;
       if (userText.trim()) {
-        // 使用 marked.js 渲染用户输入的消息为 Markdown 格式
         const userMessageHTML = marked.parse(userText);
-
-        // 在消息框显示用户输入的消息
         messageList.innerHTML += '<div><strong>User:</strong> ' + userMessageHTML + '</div>';
-        messageList.scrollTop = messageList.scrollHeight;  // 保持滚动条在最底部
+        messageList.scrollTop = messageList.scrollHeight;
         vscode.postMessage({ command: 'askQuestion', text: userText });
         userInput.value = ''; // 清空输入框
       }
     });
 
-    // 清除所有聊天记录并重置对话
     clearButton.addEventListener('click', () => {
-      messageList.innerHTML = ''; // 清空消息列表
-      vscode.postMessage({ command: 'resetConversation' }); // 重置对话状态
+      messageList.innerHTML = '';
+      vscode.postMessage({ command: 'resetConversation' });
     });
 
     window.addEventListener('message', event => {
       const message = event.data;
       if (message.command === 'aiResponse') {
-        // 使用 marked.js 渲染 AI 的回复为 Markdown 格式
         const aiMessageHTML = marked.parse(message.text);
+        const aiMessageElement = document.querySelector('#ai-message');
 
-        // 在消息框显示 AI 的回复
-        messageList.innerHTML += '<div><strong>AI:</strong> ' + aiMessageHTML + '</div>';
-        messageList.scrollTop = messageList.scrollHeight;  // 保持滚动条在最底部
+        // 如果AI消息已经存在，则更新内容
+        if (aiMessageElement) {
+          aiMessageElement.innerHTML = '<strong>AI:</strong> ' + aiMessageHTML;
+        } else {
+          messageList.innerHTML += '<div id="ai-message"><strong>AI:</strong> ' + aiMessageHTML + '</div>';
+        }
+        messageList.scrollTop = messageList.scrollHeight;
       }
     });
   </script>
@@ -164,41 +161,41 @@ function getWebviewContent() {
     </html>`;
 }
 
-// 模拟 AI 的聊天请求，可以替换为真实的 API 调用
-async function chatWithAI(messages: Message[]): Promise<Message> {
+// 流式处理AI聊天请求
+async function chatWithAI(
+    messages: Message[], onData: (data: string) => void): Promise<void> {
   try {
     const response = await fetch('http://localhost:11434/api/chat', {
       method: 'POST',
-      body: JSON.stringify({model: 'qwen2.5-coder:1.5b', messages})
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({model: 'qwen2.5-coder:1.5b', messages: messages})
     });
 
-    if (!response.ok) {
-      throw new Error(`Server responded with status ${response.status}`);
+    if (!response.body) {
+      throw new Error('No response body received');
     }
 
-    const textData = await response.text();  // 获取响应的纯文本数据
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let done = false;
+    let buffer = '';
 
-    // 按行拆分每个 JSON 数据（确保每行是一个 JSON 对象）
-    const jsonObjects = textData.split('\n').filter(line => line.trim() !== '');
+    while (!done) {
+      const {value, done: readerDone} = await reader.read();
+      done = readerDone;
+      if (value) {
+        buffer += decoder.decode(value, {stream: true});
 
-    // 提取每个 JSON 中的 message.content 并拼接
-    let combinedContent = '';
-    for (const jsonObject of jsonObjects) {
-      try {
-        const parsed = JSON.parse(jsonObject);
-        if (parsed.message && parsed.message.content) {
-          combinedContent += parsed.message.content;
-        }
-      } catch (err) {
-        console.error('Failed to parse JSON:', jsonObject);
+        // 按照字符处理流式数据
+        onData(buffer);
+        buffer = '';  // 每次处理后清空缓冲区
       }
     }
-
-    // 返回拼接的消息内容
-    return {role: 'assistant', content: combinedContent.trim()};
   } catch (error) {
     let errorMessage = 'An unknown error occurred';
+
     if (error instanceof Error) {
+      // 确保 error 是 Error 类型，才能访问 message 属性
       errorMessage = error.message;
     } else if (typeof error === 'string') {
       errorMessage = error;
@@ -206,7 +203,7 @@ async function chatWithAI(messages: Message[]): Promise<Message> {
       errorMessage = JSON.stringify(error);
     }
 
-    // 返回错误消息
-    return {role: 'assistant', content: `Error: ${errorMessage}`};
+    console.error('Error fetching AI completion:', errorMessage);
+    onData(`Error: ${errorMessage}`);
   }
 }

@@ -15,7 +15,7 @@
                 "title": "Open AI Assistant"
             },
             {
-                "command": "extension.suggestCode",
+                "command": "extension.insertAICompletion",
                 "title": "Get Code Suggestion"
             }
         ],
@@ -27,7 +27,7 @@
                     "group": "navigation"
                 },
                 {
-                    "command": "extension.suggestCode",
+                    "command": "extension.insertAICompletion",
                     "when": "editorTextFocus",
                     "group": "navigation"
                 }
