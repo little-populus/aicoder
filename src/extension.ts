@@ -29,14 +29,19 @@ export function activate(context: vscode.ExtensionContext) {
             // 将用户输入推送到全局的 messages 数组中
             messages.push({role: 'user', content: user_input});
 
-            // 流式生成AI回复
+            // 流式生成 AI 回复
             let aiReply = '';
             await chatWithAI(messages, (partialData) => {
-              aiReply += partialData;  // 累积AI回复
-              panel.webview.postMessage({command: 'aiResponse', text: aiReply});
+              aiReply += partialData;  // 累积 AI 回复
+
+              // 显示所有历史对话，并逐步更新当前对话
+              panel.webview.postMessage({
+                command: 'aiResponse',
+                text: formatMessages(messages, aiReply)  // 更新显示所有对话
+              });
             });
 
-            // 将AI回复推送到全局 messages 数组中
+            // 将 AI 回复推送到全局 messages 数组中
             messages.push({role: 'assistant', content: aiReply});
           } else if (message.command === 'resetConversation') {
             // 重置 messages 数组，回到初始状态
@@ -48,6 +53,30 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(disposable);
 }
+
+// 格式化对话内容，将所有历史对话显示出来
+function formatMessages(
+    messages: Message[], currentAIResponse: string): string {
+  let formatted = '';
+
+  messages.forEach(msg => {
+    if (msg.role === 'user') {
+      formatted +=
+          `<div style="margin-bottom: 15px;"><strong>User:</strong><br>${
+              msg.content}</div>`;
+    } else if (msg.role === 'assistant') {
+      formatted += `<div style="margin-bottom: 15px;"><strong>AI:</strong><br>${
+          msg.content}</div>`;
+    }
+  });
+
+  // 加上当前生成的 AI 回复（流式部分）
+  formatted += `<div style="margin-bottom: 8px;"><strong>AI:</strong><br>${
+      currentAIResponse}</div>`;
+
+  return formatted;
+}
+
 
 // 获取 Webview 的 HTML 内容
 function getWebviewContent() {
@@ -71,6 +100,9 @@ function getWebviewContent() {
       overflow-y: auto;
       height: 300px;
       background-color: var(--vscode-editor-background);
+    }
+    #message-list div {
+      margin-bottom: 15px; /* 增加每条消息之间的间距 */
     }
     #user-input-container {
       display: flex;
@@ -129,7 +161,7 @@ function getWebviewContent() {
       const userText = userInput.value;
       if (userText.trim()) {
         const userMessageHTML = marked.parse(userText);
-        messageList.innerHTML += '<div><strong>User:</strong> ' + userMessageHTML + '</div>';
+        messageList.innerHTML += '<div><strong>User:</strong><br>' + userMessageHTML + '</div>';
         messageList.scrollTop = messageList.scrollHeight;
         vscode.postMessage({ command: 'askQuestion', text: userText });
         userInput.value = ''; // 清空输入框
@@ -145,15 +177,8 @@ function getWebviewContent() {
       const message = event.data;
       if (message.command === 'aiResponse') {
         const aiMessageHTML = marked.parse(message.text);
-        const aiMessageElement = document.querySelector('#ai-message');
-
-        // 如果AI消息已经存在，则更新内容
-        if (aiMessageElement) {
-          aiMessageElement.innerHTML = '<strong>AI:</strong> ' + aiMessageHTML;
-        } else {
-          messageList.innerHTML += '<div id="ai-message"><strong>AI:</strong> ' + aiMessageHTML + '</div>';
-        }
-        messageList.scrollTop = messageList.scrollHeight;
+        messageList.innerHTML = aiMessageHTML;  // 更新整个对话内容
+        messageList.scrollTop = messageList.scrollHeight;  // 确保滚动条在最底部
       }
     });
   </script>
@@ -161,7 +186,8 @@ function getWebviewContent() {
     </html>`;
 }
 
-// 流式处理AI聊天请求
+
+// 流式处理 AI 聊天请求
 async function chatWithAI(
     messages: Message[], onData: (data: string) => void): Promise<void> {
   try {
@@ -178,24 +204,52 @@ async function chatWithAI(
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let done = false;
-    let buffer = '';
+    let buffer = '';              // 用来累积完整的生成回复
+    let lastDisplayedLength = 0;  // 保存已显示内容的长度
 
     while (!done) {
       const {value, done: readerDone} = await reader.read();
       done = readerDone;
-      if (value) {
-        buffer += decoder.decode(value, {stream: true});
 
-        // 按照字符处理流式数据
-        onData(buffer);
-        buffer = '';  // 每次处理后清空缓冲区
+      if (value) {
+        const partialData = decoder.decode(value, {stream: true});
+
+        // 将流式数据按行解析
+        const chunks =
+            partialData.split('\n').filter(line => line.trim() !== '');
+
+        // 处理每一块数据
+        chunks.forEach(chunk => {
+          try {
+            const parsed = JSON.parse(chunk);
+            if (parsed.message && parsed.message.content) {
+              buffer += parsed.message.content;  // 累积部分内容
+
+              // 获取尚未显示的新内容
+              const newContent = buffer.slice(lastDisplayedLength);
+              if (newContent.length > 0) {
+                onData(newContent);  // 只显示新生成的内容
+                lastDisplayedLength = buffer.length;  // 更新已显示内容的长度
+              }
+            }
+
+            // 当 done 为 true 时，表示该次回复结束，可以完成整个过程
+            if (parsed.done) {
+              onData(buffer.slice(
+                  lastDisplayedLength));  // 确保完整内容已经传输完毕
+              buffer = '';  // 重置缓冲区以便处理新的对话
+              lastDisplayedLength = 0;  // 重置显示长度
+            }
+          } catch (err) {
+            console.error('Error parsing chunk:', chunk);
+          }
+        });
       }
     }
   } catch (error) {
     let errorMessage = 'An unknown error occurred';
 
     if (error instanceof Error) {
-      // 确保 error 是 Error 类型，才能访问 message 属性
       errorMessage = error.message;
     } else if (typeof error === 'string') {
       errorMessage = error;
