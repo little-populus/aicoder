@@ -1,0 +1,49 @@
+{
+    "name": "ai-coder",
+    "displayName": "AI Assistant",
+    "description": "A simple AI assistant for VSCode.",
+    "version": "0.0.1",
+    "publisher": "yang",
+    "engines": {
+        "vscode": "^1.50.0"
+    },
+    "main": "./out/extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "extension.openSidebar",
+                "title": "Open AI Assistant"
+            },
+            {
+                "command": "extension.suggestCode",
+                "title": "Get Code Suggestion"
+            }
+        ],
+        "menus": {
+            "commandPalette": [
+                {
+                    "command": "extension.openSidebar",
+                    "when": "editorTextFocus",
+                    "group": "navigation"
+                },
+                {
+                    "command": "extension.suggestCode",
+                    "when": "editorTextFocus",
+                    "group": "navigation"
+                }
+            ]
+        }
+    },
+    "scripts": {
+        "vscode:prepublish": "tsc -p ./",
+        "watch": "tsc -watch -p ./",
+        "postinstall": "node ./node_modules/vscode/bin/install"
+    },
+    "devDependencies": {
+        "typescript": "^4.0.0",
+        "vscode": "^1.50.0",
+        "vscode-test": "^1.5.0"
+    }
+}
+
+
