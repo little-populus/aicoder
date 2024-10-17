@@ -62,20 +62,23 @@ function formatMessages(
   messages.forEach(msg => {
     if (msg.role === 'user') {
       formatted +=
-          `<div style="margin-bottom: 15px;"><strong>User:</strong><br>${
-              msg.content}</div>`;
+          `<div style="margin-bottom: 8px;"><strong>User:</strong><div style="margin-left: 10px; margin-top: 12px;">${
+              msg.content}</div></div>`;
     } else if (msg.role === 'assistant') {
-      formatted += `<div style="margin-bottom: 15px;"><strong>AI:</strong><br>${
-          msg.content}</div>`;
+      formatted +=
+          `<div style="margin-bottom: 8px;"><strong>AI:</strong><div style="margin-left: 10px; margin-top: 12px;">${
+              msg.content}</div></div>`;
     }
   });
 
   // 加上当前生成的 AI 回复（流式部分）
-  formatted += `<div style="margin-bottom: 8px;"><strong>AI:</strong><br>${
-      currentAIResponse}</div>`;
+  formatted +=
+      `<div style="margin-bottom: 8px;"><strong>AI:</strong><div style="margin-left: 10px; margin-top: 12px;">${
+          currentAIResponse}</div></div>`;
 
   return formatted;
 }
+
 
 
 // 获取 Webview 的 HTML 内容
@@ -161,7 +164,7 @@ function getWebviewContent() {
       const userText = userInput.value;
       if (userText.trim()) {
         const userMessageHTML = marked.parse(userText);
-        messageList.innerHTML += '<div><strong>User:</strong><br>' + userMessageHTML + '</div>';
+        messageList.innerHTML += '<div><strong>User:</strong><div style="margin-left: 10px; margin-top: 5px;">' + userMessageHTML + '</div></div>';
         messageList.scrollTop = messageList.scrollHeight;
         vscode.postMessage({ command: 'askQuestion', text: userText });
         userInput.value = ''; // 清空输入框
@@ -185,6 +188,7 @@ function getWebviewContent() {
     </body>
     </html>`;
 }
+
 
 
 // 流式处理 AI 聊天请求
