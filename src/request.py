@@ -1,74 +1,55 @@
+import requests
 import json
 
-import requests
+# API URL
+url = "http://localhost:11434/api/generate"
 
+# 请求数据 (JSON)
+data = {"model": "starcoder", "prompt": "def compute_gcd(a,b):", "stream": False}
 
-# NOTE: ollama must be running for this to work, start the ollama app or run `ollama serve`
+try:
+    # 发送 POST 请求
+    response = requests.post(url, json=data)
 
-model = "qwen2.5-coder:1.5b"  # TODO: update this for whatever model you wish to use
+    # 检查响应状态码
+    if response.status_code == 200:
+        try:
+            # 尝试解析 JSON 响应
+            json_data = response.json()
+            # 打印 response 字段的内容
+            if "response" in json_data:
+                print(json.dumps(json_data["response"], indent=2))
+            else:
+                print("response 字段不存在。")
+        except json.JSONDecodeError as e:
+            print(f"JSON 解析错误: {e}")
+            print("原始响应内容：")
+            print(response.text)  # 打印原始响应内容进行调试
+    else:
+        print(f"请求失败，状态码: {response.status_code}")
+        print(response.text)  # 打印错误信息
 
+except requests.exceptions.RequestException as e:
+    print(f"请求过程中出现错误: {e}")
 
-def chat(messages):
+# import ollama
 
-    r = requests.post(
-        "http://localhost:11434/api/chat",
-        json={"model": model, "messages": messages, "stream": True},
-    )
+# client = ollama.Client(host="http://localhost:11434")
 
-    r.raise_for_status()
+# try:
 
-    output = ""
+#     response = client.generate(
+#         model="starcoder",
+#         prompt=f"def compute_gcd(a,b):",
+#         # options={
+#         #     "num_predict": 256,
+#         #     "temperature": 0,
+#         #     "top_p": 0.9,
+#         #     "stop": ["<|file_separator|>"],
+#         # },
+#     )
+#     print(response)
+#     print(response.get("response"), end="\n")
 
-    for line in r.iter_lines():
-
-        body = json.loads(line)
-
-        if "error" in body:
-
-            raise Exception(body["error"])
-
-        if body.get("done") is False:
-
-            message = body.get("message", "")
-
-            content = message.get("content", "")
-
-            output += content
-
-            # the response streams one token at a time, print that as we receive it
-
-            print(content, end="", flush=True)
-
-        if body.get("done", False):
-
-            message["content"] = output
-
-            return message
-
-
-def main():
-
-    messages = []
-
-    while True:
-
-        user_input = input("Enter a prompt: ")
-
-        if not user_input:
-
-            exit()
-
-        print()
-
-        messages.append({"role": "user", "content": user_input})
-
-        message = chat(messages)
-
-        messages.append(message)
-
-        print("\n\n")
-
-
-if __name__ == "__main__":
-
-    main()
+# except ollama.ResponseError as e:
+#     print("Error:", e.status_code)

@@ -1,5 +1,7 @@
+import axios from 'axios';
 import * as vscode from 'vscode';
 
+// 定义消息类型
 type Message = {
   role: 'assistant'|'user'|'system'; content: string;
 };
@@ -7,6 +9,70 @@ type Message = {
 // 全局的 messages 数组，用来维护上下文
 let messages: Message[] =
     [{role: 'system', content: 'You are a helpful AI agent.'}];
+
+// 捕获代码到光标位置的函数
+async function getCodeToCursor(): Promise<string|undefined> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    return undefined;
+  }
+
+  const document = editor.document;
+  const position = editor.selection.active;
+  const range = new vscode.Range(new vscode.Position(0, 0), position);
+  const code = document.getText(range);
+  return code;
+}
+
+// 向 AI 接口发送请求的函数
+async function fetchCodeSuggestion(code: string): Promise<string|undefined> {
+  try {
+    const url = 'http://localhost:11434/api/generate';
+
+    // 准备请求体数据
+    const data = {
+      model: 'starcoder',
+      prompt: code,
+      stream: false,
+    };
+
+
+    // 使用 fetch 发送 POST 请求
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+
+    // 检查响应状态码是否为 200
+    if (response.status === 200) {
+      // 解析 JSON 响应，并添加类型断言
+      const jsonData = (await response.json()) as {response?: string};
+
+      // 打印调试信息
+      console.log('API 返回的数据:', jsonData);
+
+      // 检查并返回 response 字段内容
+      if (jsonData.response) {
+        return jsonData.response;  // 返回 response 字段的内容
+      } else {
+        console.error('response 字段不存在。');
+        return undefined;
+      }
+    } else {
+      console.error(`请求失败，状态码: ${response.status}`);
+      console.error(await response.text());  // 打印错误信息
+      return undefined;
+    }
+  } catch (error) {
+    console.error(`请求过程中出现错误: ${error}`);
+    return undefined;
+  }
+}
+
+
 
 export function activate(context: vscode.ExtensionContext) {
   // 注册打开侧边栏的命令
@@ -52,6 +118,44 @@ export function activate(context: vscode.ExtensionContext) {
       });
 
   context.subscriptions.push(disposable);
+
+  // 注册插入 AI 代码建议的命令
+  let insertAIDisposable = vscode.commands.registerCommand(
+      'extension.insertAICompletion', async () => {
+        const editor = vscode.window.activeTextEditor;
+        if (!editor) {
+          return;
+        }
+
+        const codeToCursor = await getCodeToCursor();
+        if (!codeToCursor) {
+          vscode.window.showErrorMessage('Failed to get code.');
+          return;
+        }
+
+        vscode.window.showInformationMessage('Fetching AI suggestion...');
+
+        try {
+          const aiSuggestion = await fetchCodeSuggestion(codeToCursor);
+          if (aiSuggestion) {
+            // 获取当前光标位置
+            const position = editor.selection.active;
+
+            // 在光标位置插入 AI 建议的代码
+            editor.edit(editBuilder => {
+              editBuilder.insert(position, `\n${aiSuggestion}`);
+            });
+
+            vscode.window.showInformationMessage('Code suggestion inserted!');
+          } else {
+            vscode.window.showErrorMessage('No suggestion received.');
+          }
+        } catch (error) {
+          vscode.window.showErrorMessage(`Error: ${error}`);
+        }
+      });
+
+  context.subscriptions.push(insertAIDisposable);
 }
 
 // 格式化对话内容，将所有历史对话显示出来
@@ -78,7 +182,6 @@ function formatMessages(
 
   return formatted;
 }
-
 
 
 // 获取 Webview 的 HTML 内容
@@ -188,8 +291,6 @@ function getWebviewContent() {
     </body>
     </html>`;
 }
-
-
 
 // 流式处理 AI 聊天请求
 async function chatWithAI(

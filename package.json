@@ -1,49 +1,47 @@
 {
-    "name": "ai-coder",
-    "displayName": "AI Assistant",
-    "description": "A simple AI assistant for VSCode.",
-    "version": "0.0.1",
-    "publisher": "yang",
-    "engines": {
-        "vscode": "^1.50.0"
-    },
-    "main": "./out/extension.js",
-    "contributes": {
-        "commands": [
-            {
-                "command": "extension.openSidebar",
-                "title": "Open AI Assistant"
-            },
-            {
-                "command": "extension.insertAICompletion",
-                "title": "Get Code Suggestion"
-            }
-        ],
-        "menus": {
-            "commandPalette": [
-                {
-                    "command": "extension.openSidebar",
-                    "when": "editorTextFocus",
-                    "group": "navigation"
-                },
-                {
-                    "command": "extension.insertAICompletion",
-                    "when": "editorTextFocus",
-                    "group": "navigation"
-                }
-            ]
+  "name": "ai-coder",
+  "displayName": "AI Assistant",
+  "description": "A simple AI assistant for VSCode.",
+  "version": "0.0.1",
+  "publisher": "yang",
+  "engines": {
+    "vscode": "^1.50.0"
+  },
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "extension.openSidebar",
+        "title": "Open AI Assistant"
+      },
+      {
+        "command": "extension.insertAICompletion",
+        "title": "Get Code Suggestion"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "extension.openSidebar",
+          "when": "editorTextFocus",
+          "group": "navigation"
+        },
+        {
+          "command": "extension.insertAICompletion",
+          "when": "editorTextFocus",
+          "group": "navigation"
         }
-    },
-    "scripts": {
-        "vscode:prepublish": "tsc -p ./",
-        "watch": "tsc -watch -p ./",
-        "postinstall": "node ./node_modules/vscode/bin/install"
-    },
-    "devDependencies": {
-        "typescript": "^4.0.0",
-        "vscode": "^1.50.0",
-        "vscode-test": "^1.5.0"
+      ]
     }
+  },
+  "scripts": {
+    "vscode:prepublish": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.87.0",
+    "@vscode/test-electron": "^2.0.3",
+    "axios": "^1.7.7",
+    "typescript": "^5.3.3"
+  }
 }
-
-
