@@ -18,7 +18,8 @@ try:
             json_data = response.json()
             # 打印 response 字段的内容
             if "response" in json_data:
-                print(json.dumps(json_data["response"], indent=2))
+                print(json_data)
+                # print(json.dumps(json_data["response"], indent=2))
             else:
                 print("response 字段不存在。")
         except json.JSONDecodeError as e:

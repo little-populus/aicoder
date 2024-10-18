@@ -39,9 +39,13 @@
     "watch": "tsc -watch -p ./"
   },
   "devDependencies": {
+    "@types/mocha": "^10.0.9",
+    "@types/node": "^22.7.6",
     "@types/vscode": "^1.87.0",
     "@vscode/test-electron": "^2.0.3",
     "axios": "^1.7.7",
+    "jest": "^29.7.0",
+    "mocha": "^10.7.3",
     "typescript": "^5.3.3"
   }
 }

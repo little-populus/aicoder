@@ -27,47 +27,34 @@ async function getCodeToCursor(): Promise<string|undefined> {
 // 向 AI 接口发送请求的函数
 async function fetchCodeSuggestion(code: string): Promise<string|undefined> {
   try {
-    const url = 'http://localhost:11434/api/generate';
-
-    // 准备请求体数据
-    const data = {
-      model: 'starcoder',
-      prompt: code,
-      stream: false,
-    };
-
-
-    // 使用 fetch 发送 POST 请求
-    const response = await fetch(url, {
+    const response = await fetch('http://localhost:11434/api/generate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        model: 'starcoder',
+        prompt: code,
+        stream: false,
+      }),
     });
 
-    // 检查响应状态码是否为 200
-    if (response.status === 200) {
-      // 解析 JSON 响应，并添加类型断言
-      const jsonData = (await response.json()) as {response?: string};
-
-      // 打印调试信息
-      console.log('API 返回的数据:', jsonData);
-
-      // 检查并返回 response 字段内容
-      if (jsonData.response) {
-        return jsonData.response;  // 返回 response 字段的内容
-      } else {
-        console.error('response 字段不存在。');
-        return undefined;
-      }
-    } else {
+    if (!response.ok) {
       console.error(`请求失败，状态码: ${response.status}`);
-      console.error(await response.text());  // 打印错误信息
+      return undefined;
+    }
+
+    const data = await response.json();
+    console.log('API 返回的数据:', data);
+
+    if (data && data.response) {
+      return data.response;
+    } else {
+      console.error('response 字段不存在。');
       return undefined;
     }
   } catch (error) {
-    console.error(`请求过程中出现错误: ${error}`);
+    console.error('请求过程中出现错误:', error);
     return undefined;
   }
 }
